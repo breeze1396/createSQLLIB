@@ -6,40 +6,43 @@ using System.Text.RegularExpressions;
 
 namespace createSQLLIB.generate
 {
-    //todo：解决comment中带有','的问题
+    public class FieldInfo
+    {
+        public required string FieldName { get; set; }
+        public required string FieldType { get; set; }
+        public string? DefaultValue { get; set; }
+        public bool IsPrimaryKey { get; set; }
+        public string? Comment { get; set; }
+        public bool IsNullable { get; set; }
+        public bool IsAutoIncrement { get; set; }
+        public required SimulateType SimuType { get; set; }
+    }
+    /*todo：解决comment中带有','的问题
+     * 对于解析字段，加上字段的约束
+     * 表名自动解析
+     * 表的注释自动解析
+        */
     public class PraseSQL
     {
-       public enum SimulateType
-       {
-            noSimulate,
-            fixedValue,
-            randomValue,
-            incrementalValue,
-            wordsValues
-       }
-        public class FieldInfo
+        public PraseSQL(string createTableSql)
         {
-            public required string FieldName { get; set; }
-            public required string FieldType { get; set; }
-            public string? DefaultValue { get; set; }
-            public bool IsPrimaryKey { get; set; }
-            public string? Comment { get; set; }
-            public bool IsNullable { get; set; }
-            public bool IsAutoIncrement { get; set; }
-            public SimulateType SimuType { get; set; }
+            _createTableSql = createTableSql;
+            ShrinkSql();
+            TableName = PraseTableName(_createTableSql);
+            TableComment = PraseTableComment(_createTableSql);
         }
 
-        public List<FieldInfo> ExtractFields(string createTableSql)
+        
+
+        public List<FieldInfo> ExtractFields()
         {
-            createTableSql = ShrinkSql(createTableSql);
             List<FieldInfo> fields = [];
-            var sql = SplitSQL(createTableSql);
+            var sql = SplitSQL(_createTableSql);
 
             for (int i = 0; i < sql.Length; i++)
             {
                 if (sql[i].Length == 0) continue;
                 var sqlArray = sql[i].Split(" ");
-                Console.WriteLine(sqlArray.Length);
                 FieldInfo field = new()
                 {
                     FieldName = sqlArray[0],
@@ -48,7 +51,8 @@ namespace createSQLLIB.generate
                     Comment = PraseComment(sql[i]),
                     IsPrimaryKey = PraseIsPrimaryKey(sql[i]),
                     IsNullable = PraseIsNullable(sql[i]),
-                    IsAutoIncrement = PraseIsAutoIncrement(sql[i])
+                    IsAutoIncrement = PraseIsAutoIncrement(sql[i]),
+                    SimuType = new NoSimulate()
                 };
 
                 fields.Add(field);
@@ -56,16 +60,34 @@ namespace createSQLLIB.generate
             return fields;
         }
 
-        private static string ShrinkSql(string sql)
-        {
-            sql = sql.Replace("\r", "").Replace("\n", "");
-            return Regex.Replace(sql, @"\s+", " ");
-        }
         private static string[] SplitSQL(string sql)
         {
             sql = sql.Substring(sql.IndexOf("(") + 1, sql.LastIndexOf(")") - sql.IndexOf("(") - 1);
-
             return sql.Split(",");
+        }
+        private static string PraseTableName(string sql)
+        {
+            var regex = new Regex(@"\s*(\S+)\s*\(", RegexOptions.IgnoreCase);
+            Match match = regex.Match(sql);
+
+            if (match.Success && match.Groups.Count > 1)
+            {
+                return match.Groups[1].Value;
+            }
+
+            return "UserDB";
+        }
+        private static string PraseTableComment(string sql)
+        {
+            var regex = new Regex(@"\)\s*COMMENT\s*['|""](.+?)['|""]", RegexOptions.IgnoreCase);
+            Match match = regex.Match(sql);
+
+            if (match.Success && match.Groups.Count > 1)
+            {
+                return match.Groups[1].Value;
+            }
+
+            return "";
         }
         private static string PraseType(string sql)
         {
@@ -106,5 +128,17 @@ namespace createSQLLIB.generate
         {
             return sql.Contains("auto_increment") || sql.Contains("AUTO_INCREASE");
         }
+        private void ShrinkSql()
+        {
+            _createTableSql = _createTableSql.Replace("\r", "").Replace("\n", "");
+            _createTableSql = Regex.Replace(_createTableSql, @"\s+", " ");
+        }
+        
+        
+        public string TableName { get; }
+        public string TableComment { get; }
+
+
+        private string _createTableSql = "";
     }
 }
