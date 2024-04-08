@@ -8,6 +8,9 @@ namespace createSQLLIB.generate
 {
     internal class SetSimuDataOptions
     {
+        SetSimuDataOptions()
+        {
 
+        }
     }
 }
